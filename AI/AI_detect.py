@@ -1,7 +1,7 @@
 from flask import request, Flask,jsonify
 import multiprocessing as mp
 import cv2
-
+import time
 from detection_model import model_detect
 import warnings
 
@@ -27,6 +27,7 @@ def process_model(processes, model_processes,  request_data, rstm_path, queues, 
         model_process = mp.Process(target=model_detect, args=(queues[queue_id], request_data, queue_img ))
         model_process.start()
         model_processes.append(model_process)
+        time.sleep(10)
 
     proc = mp.Process(target=read_rstm, args=(rstm_path[-1], queues[queue_id]))
     proc.start()
@@ -59,6 +60,7 @@ def requests_data():
 
 # 进程读流
 def read_rstm(rstm, queue):
+    id=0
     cap = cv2.VideoCapture(rstm[0])
     if not cap.isOpened():
         print(f"Error opening video stream: {rstm[0]}")
@@ -73,7 +75,11 @@ def read_rstm(rstm, queue):
         # 根据需要调整大小
         # 限制队列大小
         if queue.qsize() < 10:
-            queue.put((rstm[0], rstm[1], frame))
+            if id % 3 ==0:
+                queue.put((rstm[0], rstm[1], frame))
+            id += 1
+        time.sleep(0.03)
+        
     cap.release()
 
 if __name__ == '__main__':
