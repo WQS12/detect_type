@@ -7,29 +7,28 @@ import warnings
 
 warnings.simplefilter(action='ignore', category=FutureWarning)
 app = Flask(__name__)
-
+queue_id = 0
 rstm_path = []
 queues = []
 # 接收到的信息
 request_data = []
 
 
-def process_model(processes, model_processes, queue_id, request_data, rstm_path, queues, queue_img):
+def process_model(processes, model_processes,  request_data, rstm_path, queues, queue_img):
+    global queue_id
     # 进程读流和模型启动模块
-    if len(rstm_path) % 4 == 0:
-        queue_id = len(rstm_path) // 4
 
     if len(rstm_path) % 4 == 1:
-
+        queue_id = len(rstm_path) // 4
         # model_de = load_model()
         queue = mp.Queue(maxsize=10)
         queues.append(queue)
 
-        model_process = mp.Process(target=model_detect, args=(queues[queue_id - 1], request_data, queue_img ))
+        model_process = mp.Process(target=model_detect, args=(queues[queue_id], request_data, queue_img ))
         model_process.start()
         model_processes.append(model_process)
 
-    proc = mp.Process(target=read_rstm, args=(rstm_path[-1], queues[queue_id - 1]))
+    proc = mp.Process(target=read_rstm, args=(rstm_path[-1], queues[queue_id]))
     proc.start()
     processes.append(proc)
 
@@ -40,7 +39,6 @@ queue_img = mp.Queue(maxsize=20)
 
 @app.route('/detect/AI', methods=['POST'])
 def requests_data():
-    queue_id = 1
     processes = []
     model_processes = []
     # 解析获取地址
@@ -55,7 +53,7 @@ def requests_data():
     rstm_path.append([path, id])
     request_data.append(data)
 
-    process_model(processes, model_processes, queue_id, request_data, rstm_path, queues, queue_img)
+    process_model(processes, model_processes, request_data, rstm_path, queues, queue_img)
     return jsonify('request success!')
 
 
@@ -67,7 +65,7 @@ def read_rstm(rstm, queue):
         return
     while True:
         ret, frame = cap.read()
-        print(rstm)
+        #print(rstm)
         if not ret:
             break
         # 调整帧的大小以减少内存使用
@@ -80,4 +78,3 @@ def read_rstm(rstm, queue):
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=8080)
-
