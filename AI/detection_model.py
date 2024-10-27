@@ -4,7 +4,8 @@ import cv2
 lo_model = []
 def load_model():
 
-    model  = torch.hub.load('D:\wendang\yolov5-maste2', 'custom', path=r'D:\wendang\yolov5-maste2\spy_5.10.pt', source='local')
+    model = torch.hub.load('./AI/model', 'custom', path=r'./AI/9_3.pt',
+                       source='local')
     lo_model = []
     lo_model.append(model)
     return lo_model
@@ -34,7 +35,7 @@ def model_detect(queue, data, queue_img):
 
                     results = model[0]([item[1] for item in batch])
 
-                    print('reslut:',results)
+                    #print('reslut:',results)
                     for i in range(len(results)):
                         frame_img[batch[i][0]] = batch[i][1]
 
@@ -55,9 +56,10 @@ def model_detect(queue, data, queue_img):
 
                     # 事件检测函数
 
-                    queue_img.put([frame_img, frame_coordinat])
+                    #queue_img.put([frame_img, frame_coordinat])
                     # print('img_coor:', queue_img.get())
                     batch.clear()
+            print(queue.qsize())
 
     except KeyboardInterrupt:
         print("Program interrupted by user.")
