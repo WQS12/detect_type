@@ -39,7 +39,7 @@ def read_rtsp(id,input_queues,output_queues,rtsp_url):
         except Exception:
             continue  # 如果队列为空，继续下一个队列
         
-        print(data[0])
+        print('数据来源:',data[0],'ID:',id)
         time.sleep(0.06)
     input_queues[index].put(None)
     cap.release()
