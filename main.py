@@ -1,7 +1,34 @@
 import cv2
+import torch
 from multiprocessing import Queue, Process, Pipe
 import time
+from detection_model import model_detect
 
+def model_detect(data,model):
+    # 检测区域坐标
+    frame_coordinat = []
+
+    
+    batch = [item[1] for item in data]
+    start_time = time.time()
+    results = model(batch)
+    print('time:',time.time()-start_time)
+
+    #print('reslut:',results)
+    for i in range(len(results)):
+        # 初始化该帧的坐标列表
+        frame_coordinat.append([data[i][0],batch[i]])
+
+        for index, row in results.pandas().xyxy[i].iterrows():
+            x, y, w, h = int(row['xmin']), int(row['ymin']), int(row['xmax']), int(row['ymax'])
+            confidence = row['confidence']
+            class_id = row['name']
+
+            # 将每个目标的坐标信息添加到该帧的坐标列表中
+            frame_coordinat[i].append([x, y, w, h, confidence, class_id])
+        #print(frame_coordinat)  
+    
+    return frame_coordinat
 def receive_data(queues):
     data = []
     while len(data) < 8:
@@ -14,9 +41,6 @@ def receive_data(queues):
                     continue  # 如果队列为空，继续下一个队列
             else:
                 break  # 如果 data 长度已达到 8，则退出循环
-    return data
-def model_detect(data):
-
     return data
 def read_rtsp(id,input_queues,output_queues,rtsp_url):
     cap = cv2.VideoCapture(rtsp_url)
@@ -39,19 +63,22 @@ def read_rtsp(id,input_queues,output_queues,rtsp_url):
         except Exception:
             continue  # 如果队列为空，继续下一个队列
         
-        print('数据来源:',data[0],'ID:',id)
+        print('数据:',data,'ID:',id)
         time.sleep(0.06)
     input_queues[index].put(None)
     cap.release()
 
 
 def main(input_queues,output_queues):
+    model = torch.hub.load('./model', 'custom', path=r'./best_8.engine',
+                       source='local')
     while True:
         data = receive_data(input_queues)#取流
-        results = model_detect(data)#模型检测
+        results = model_detect(data,model)#模型检测
         #--------------------
         #根据ID发送数据
         for result in results:
+            #print(result)
             index = result[0] % 8 
             output_queues[index].put(result)
         
@@ -63,7 +90,7 @@ if __name__ == '__main__':
     input_queues = []
     output_queues = []
     queue_id = -1#队列分组索引
-    for i in range(30):
+    for i in range(8):
         if i % 8 == 0:
             queue_id += 1
         #---------------------------------------------------------------
