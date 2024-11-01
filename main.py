@@ -1,9 +1,15 @@
 import cv2
 import torch
+from flask import request, Flask,jsonify
 from multiprocessing import Queue, Process, Pipe
 import time
 from detection_model import model_detect
-
+app = Flask(__name__)
+video_processes = []
+main_process = []
+input_queues = []
+output_queues = []
+queue_id = -1#队列分组索引
 def model_detect(data,model):
     # 检测区域坐标
     frame_coordinat = []
@@ -83,37 +89,29 @@ def main(input_queues,output_queues):
             output_queues[index].put(result)
         
     
+@app.route('/start_detect', methods=['POST'])
+def requests_data():
+    global queue_id
+    data = request.get_json()
+    rtsp = data['rtspUrl']
+    id = int(data['id'])
+    if id % 8 == 0:
+        queue_id += 1
+    #---------------------------------------------------------------
+    #动态增加队列组
+        input_queues.append([Queue(30) for _ in range(8)])
+        output_queues.append([Queue(30) for _ in range(8)])
+    #---------------------------------------------------------------
+    #数据中转（对应8路读流）
+        A = Process(target=main, args=(input_queues[queue_id],output_queues[queue_id]))
+        A.start()
+        main_process.append(A)
+    #---------------------------------------------------------------
+    #读流
+    A = Process(target=read_rtsp, args=(id,input_queues[queue_id],output_queues[queue_id],rtsp))
+    A.start()
+    video_processes.append(A)
+    return jsonify('request success!')
 
 if __name__ == '__main__':
-    video_processes = []
-    main_process = []
-    input_queues = []
-    output_queues = []
-    queue_id = -1#队列分组索引
-    for i in range(8):
-        if i % 8 == 0:
-            queue_id += 1
-        #---------------------------------------------------------------
-        #动态增加队列组
-            input_queues.append([Queue(30) for _ in range(8)])
-            output_queues.append([Queue(30) for _ in range(8)])
-        #---------------------------------------------------------------
-        #数据中转（对应8路读流）
-            A = Process(target=main, args=(input_queues[queue_id],output_queues[queue_id]))
-            A.start()
-            print(f"Starting detection for {i}")
-            main_process.append(A)
-        #---------------------------------------------------------------
-        #读流
-        A = Process(target=read_rtsp, args=(i,input_queues[queue_id],output_queues[queue_id],r"./demo.mp4"))
-        A.start()
-        print(f"Starting detection for {i}")
-        video_processes.append(A)
-        time.sleep(0.05)
-
-    print(len(video_processes))
-    # 等待所有进程完成
-    for p in video_processes:
-        p.join()
-    for p in main_process:
-        p.join()
+    app.run(host='0.0.0.0', port=8000,debug=True)
